@@ -1,10 +1,11 @@
 import re
 import logging
+import asyncio
 from typing import List, Dict, Tuple
 from collections import Counter
 from textblob import TextBlob
 from sklearn.feature_extraction.text import TfidfVectorizer
-from app.models import VideoAnalysis, Comment, SentimentSummary
+from app.models import VideoAnalysis, Comment, SentimentSummary, BatchProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,146 @@ class AnalysisService:
         except Exception as e:
             logger.error(f"Error analyzing video comments: {str(e)}")
             return self._create_empty_analysis(video_data)
+    
+    async def analyze_videos_batch(
+        self, 
+        videos: List[Dict], 
+        youtube_service, 
+        api_key: str,
+        progress_callback=None
+    ) -> List[VideoAnalysis]:
+        """Process videos sequentially with batch comment fetching and analysis"""
+        results = []
+        total_videos = len(videos)
+        
+        logger.info(f"Starting batch analysis of {total_videos} videos")
+        
+        for index, video in enumerate(videos, 1):
+            try:
+                logger.info(f"Processing video {index}/{total_videos}: {video['title']}")
+                
+                # Update progress if callback provided
+                if progress_callback:
+                    status = BatchProcessingStatus(
+                        current_video=index,
+                        total_videos=total_videos,
+                        video_id=video["videoId"],
+                        video_title=video["title"],
+                        status="fetching_comments"
+                    )
+                    await progress_callback(status)
+                
+                # Fetch exactly 100 comments with pagination
+                comments = await youtube_service.get_video_comments(
+                    video_id=video["videoId"],
+                    api_key=api_key,
+                    max_results=100
+                )
+                
+                logger.info(f"Fetched {len(comments)} comments for video {video['videoId']}")
+                
+                # Update progress
+                if progress_callback:
+                    status.status = "analyzing_comments"
+                    status.comments_fetched = len(comments)
+                    await progress_callback(status)
+                
+                # Perform comprehensive analysis
+                analysis_result = await self.analyze_video_comments(
+                    video_data=video,
+                    comments=comments
+                )
+                
+                # Add batch-specific metrics
+                analysis_result = self._enhance_with_batch_metrics(analysis_result, comments)
+                
+                results.append(analysis_result)
+                
+                # Update progress
+                if progress_callback:
+                    status.status = "completed"
+                    await progress_callback(status)
+                
+                logger.info(f"Completed analysis for video {index}/{total_videos}: {video['title']}")
+                
+                # Add delay between videos to respect rate limits
+                if index < total_videos:
+                    await asyncio.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Error processing video {video.get('videoId', 'unknown')}: {str(e)}")
+                
+                # Create error analysis result
+                error_result = self._create_error_analysis(video, str(e))
+                results.append(error_result)
+                
+                # Update progress with error
+                if progress_callback:
+                    status = BatchProcessingStatus(
+                        current_video=index,
+                        total_videos=total_videos,
+                        video_id=video.get("videoId", "unknown"),
+                        video_title=video.get("title", "Unknown"),
+                        status="error",
+                        error_message=str(e)
+                    )
+                    await progress_callback(status)
+                
+                continue
+        
+        logger.info(f"Batch analysis completed. Processed {len(results)} videos")
+        return results
+    
+    def _enhance_with_batch_metrics(self, analysis: VideoAnalysis, comments: List[Dict]) -> VideoAnalysis:
+        """Enhance analysis with additional batch processing metrics"""
+        if not comments:
+            return analysis
+        
+        # Calculate engagement metrics
+        total_likes = sum(comment.get("likeCount", 0) for comment in comments)
+        avg_likes = total_likes / len(comments) if comments else 0
+        
+        # Find top engaged comments (by likes)
+        sorted_comments = sorted(comments, key=lambda x: x.get("likeCount", 0), reverse=True)
+        top_engaged = sorted_comments[:5]
+        
+        # Calculate reply engagement
+        total_replies = sum(comment.get("replyCount", 0) for comment in comments)
+        avg_replies = total_replies / len(comments) if comments else 0
+        
+        # Add these metrics to the analysis (we'll extend the model if needed)
+        # For now, we'll add them as additional keywords
+        engagement_keywords = []
+        if avg_likes > 10:
+            engagement_keywords.append("high engagement")
+        if avg_replies > 2:
+            engagement_keywords.append("active discussion")
+        if len([c for c in comments if c.get("likeCount", 0) > 50]) > 5:
+            engagement_keywords.append("viral comments")
+        
+        # Merge with existing keywords
+        enhanced_keywords = list(set(analysis.topKeywords + engagement_keywords))
+        analysis.topKeywords = enhanced_keywords[:10]  # Keep top 10
+        
+        return analysis
+    
+    def _create_error_analysis(self, video_data: Dict, error_message: str) -> VideoAnalysis:
+        """Create an error analysis result for failed video processing"""
+        return VideoAnalysis(
+            videoId=video_data.get("videoId", "unknown"),
+            title=video_data.get("title", "Unknown Video"),
+            channelName=video_data.get("channelName", "Unknown Channel"),
+            thumbnailUrl=video_data.get("thumbnailUrl", ""),
+            publishedAt=video_data.get("publishedAt", ""),
+            viewCount=video_data.get("viewCount", 0),
+            commentCount=0,
+            sentimentSummary=SentimentSummary(positive=0.0, neutral=1.0, negative=0.0),
+            topKeywords=[f"error: {error_message[:50]}"],
+            pros=[],
+            cons=[],
+            nextTopicIdeas=[],
+            comments=[]
+        )
     
     def _analyze_sentiment(self, text: str) -> str:
         """Analyze sentiment of a single comment"""

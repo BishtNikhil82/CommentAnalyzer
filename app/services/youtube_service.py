@@ -1,4 +1,5 @@
 import httpx
+import asyncio
 import logging
 from typing import List, Dict, Optional
 from fastapi import HTTPException
@@ -109,42 +110,72 @@ class YouTubeService:
         api_key: str,
         max_results: int = 100
     ) -> List[Dict]:
-        """Get comments for a specific video"""
+        """Get comments for a specific video with pagination support"""
         try:
-            params = {
-                "part": "snippet",
-                "videoId": video_id,
-                "maxResults": max_results,
-                "order": "relevance",
-                "textFormat": "plainText",
-                "key": api_key
-            }
-            
-            response = await self.client.get(f"{self.base_url}/commentThreads", params=params)
-            
-            if response.status_code == 403:
-                # Comments might be disabled for this video
-                logger.warning(f"Comments disabled or restricted for video {video_id}")
-                return []
-            elif response.status_code != 200:
-                logger.error(f"Error fetching comments for video {video_id}: {response.status_code}")
-                return []
-            
-            data = response.json()
             comments = []
+            next_page_token = None
+            page_size = min(50, max_results)  # YouTube API max is 100, but we use 50 for better pagination
             
-            for item in data.get("items", []):
-                comment_data = item["snippet"]["topLevelComment"]["snippet"]
+            while len(comments) < max_results:
+                # Calculate how many comments we still need
+                remaining_needed = max_results - len(comments)
+                current_page_size = min(page_size, remaining_needed)
                 
-                comment = {
-                    "text": comment_data["textDisplay"],
-                    "author": comment_data["authorDisplayName"],
-                    "likeCount": comment_data.get("likeCount", 0),
-                    "publishedAt": comment_data["publishedAt"]
+                params = {
+                    "part": "snippet",
+                    "videoId": video_id,
+                    "maxResults": current_page_size,
+                    "order": "relevance",
+                    "textFormat": "plainText",
+                    "key": api_key
                 }
-                comments.append(comment)
+                
+                if next_page_token:
+                    params["pageToken"] = next_page_token
+                
+                logger.info(f"Fetching comments for video {video_id}, page size: {current_page_size}, total so far: {len(comments)}")
+                
+                response = await self.client.get(f"{self.base_url}/commentThreads", params=params)
+                
+                if response.status_code == 403:
+                    logger.warning(f"Comments disabled or restricted for video {video_id}")
+                    break
+                elif response.status_code == 429:
+                    logger.warning(f"Rate limit hit for video {video_id}, returning comments collected so far")
+                    break
+                elif response.status_code != 200:
+                    logger.error(f"Error fetching comments for video {video_id}: {response.status_code}")
+                    break
+                
+                data = response.json()
+                page_comments = []
+                
+                for item in data.get("items", []):
+                    comment_data = item["snippet"]["topLevelComment"]["snippet"]
+                    
+                    comment = {
+                        "text": comment_data["textDisplay"],
+                        "textOriginal": comment_data.get("textOriginal", comment_data["textDisplay"]),
+                        "author": comment_data["authorDisplayName"],
+                        "likeCount": comment_data.get("likeCount", 0),
+                        "publishedAt": comment_data["publishedAt"],
+                        "replyCount": item["snippet"].get("totalReplyCount", 0)
+                    }
+                    page_comments.append(comment)
+                
+                comments.extend(page_comments)
+                
+                # Check if we have more pages
+                next_page_token = data.get("nextPageToken")
+                if not next_page_token or len(page_comments) == 0:
+                    logger.info(f"No more pages available for video {video_id}")
+                    break
+                
+                # Add small delay to respect rate limits
+                await asyncio.sleep(0.1)
             
-            return comments
+            logger.info(f"Successfully fetched {len(comments)} comments for video {video_id}")
+            return comments[:max_results]  # Ensure we don't exceed the requested limit
             
         except Exception as e:
             logger.error(f"Error getting comments for video {video_id}: {str(e)}")
