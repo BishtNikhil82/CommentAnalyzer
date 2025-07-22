@@ -19,6 +19,9 @@ class AnalyzeYouTubeResponse(BaseModel):
     pros: str
     cons: str
     next_hot_topic: str
+    reason: Optional[str] = None
+    comments_fetched: Optional[int] = None
+    comments_sanitized: Optional[int] = None
 
 @app.get("/analyze-youtube", response_model=List[AnalyzeYouTubeResponse])
 def analyze_youtube(
