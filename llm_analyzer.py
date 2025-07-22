@@ -79,7 +79,7 @@ def analyze_video_comments(video, comments):
         return base_response
 
     prompt = build_prompt(video, sanitized_comments)
-    logger.info(f"LLM Prompt for video {video['video_id']}:\n{prompt}")
+    #logger.info(f"LLM Prompt for video {video['video_id']}:\n{prompt}")
     
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",

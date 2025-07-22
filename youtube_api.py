@@ -96,5 +96,5 @@ def fetch_top_comments(video_id, max_results=50):
         text = snippet.get("textOriginal", "").strip()
         if text:
             comments.append(text)
-    logger.info(f"YouTube Comments API returned {len(comments)} comments for video {video_id}.")
+    #logger.info(f"YouTube Comments API returned {len(comments)} comments for video {video_id}.")
     return comments 
