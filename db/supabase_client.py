@@ -1,0 +1,26 @@
+from supabase import create_client, Client
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "YOUR_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "YOUR_SUPABASE_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def insert_job_result(job_id: str, video: dict, analysis: dict):
+    """
+    Inserts a job result into the job_results table in Supabase.
+    Maps summary to next_hot_topic from analysis.
+    """
+    data = {
+        "job_id": job_id,
+        "video_id": video["video_id"],
+        "channel_title": video.get("channelTitle"),
+        "video_title": video.get("video_title"),
+        "thumbnail_url": video.get("thumbnail_url"),
+        "pros": analysis.get("pros"),
+        "cons": analysis.get("cons"),
+        "summary": analysis.get("next_hot_topic"),
+    }
+    return supabase.table("job_results").insert(data).execute() 

@@ -4,3 +4,5 @@ requests
 pydantic
 python-dotenv
 langdetect
+supabase
+pytest
