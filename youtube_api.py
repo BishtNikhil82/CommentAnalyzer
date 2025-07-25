@@ -25,7 +25,7 @@ def _parse_duration(duration_str: str) -> int:
         total_seconds += int(seconds_match.group(1))
     return total_seconds
 
-def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=None, youtube_token=None):
+# def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=None, youtube_token=None):
     if not youtube_token:
         logger.error("Missing YouTube OAuth token")
         return []
@@ -41,7 +41,8 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
         "q": query,
         "type": "video",
         "maxResults": min(50, maxResults * 2),
-        "order": order
+        "order": order,
+        "videoDuration": "medium"
     }
     if regionCode:
         search_params["regionCode"] = regionCode
@@ -69,9 +70,9 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
 
     final_videos = []
     for item in videos_resp.json().get("items", []):
-        duration_seconds = _parse_duration(item.get("contentDetails", {}).get("duration"))
-        if duration_seconds < 300:  # Skip videos less than 5 minutes
-            continue
+        # duration_seconds = _parse_duration(item.get("contentDetails", {}).get("duration"))
+        # if duration_seconds < 300:  # Skip videos less than 5 minutes
+        #     continue
 
         snippet = item["snippet"]
         final_videos.append({
@@ -86,6 +87,84 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
 
     logger.info(f"YouTube Search API returned {len(final_videos)} videos after filtering.")
     return final_videos
+
+def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=None, youtube_token=None):
+    if not youtube_token:
+        logger.error("Missing YouTube OAuth token")
+        return []
+
+    headers = {
+        "Authorization": f"Bearer {youtube_token}",
+        "Accept": "application/json"
+    }
+
+    search_url = "https://www.googleapis.com/youtube/v3/search"
+    search_params = {
+        "part": "snippet",
+        "q": query,
+        "type": "video",  # Ensures only videos are requested
+        "maxResults": min(50, maxResults * 2),
+        "order": order,
+        "videoDuration": "medium"
+    }
+
+    if regionCode:
+        search_params["regionCode"] = regionCode
+
+    logger.info(f"YouTube Search API request: {search_url} params={search_params}")
+    search_resp = requests.get(search_url, headers=headers, params=search_params)
+    logger.info(f"YouTube Search API response status: {search_resp.status_code}")
+    
+    if search_resp.status_code != 200:
+        logger.error(f"YouTube API error: {search_resp.text}")
+        return []
+
+    search_items = search_resp.json().get("items", [])
+
+    # ✅ Safe videoId extraction
+    video_ids = [
+        item["id"]["videoId"]
+        for item in search_items
+        if item.get("id", {}).get("kind") == "youtube#video" and "videoId" in item["id"]
+    ]
+
+    if not video_ids:
+        logger.warning("No valid video IDs found in search results.")
+        return []
+
+    videos_url = "https://www.googleapis.com/youtube/v3/videos"
+    videos_params = {
+        "part": "snippet,contentDetails",
+        "id": ",".join(video_ids)
+    }
+
+    videos_resp = requests.get(videos_url, headers=headers, params=videos_params)
+    logger.info(f"YouTube Videos API response status: {videos_resp.status_code}")
+    
+    if videos_resp.status_code != 200:
+        logger.error(f"YouTube Videos API error: {videos_resp.text}")
+        return []
+
+    final_videos = []
+    for item in videos_resp.json().get("items", []):
+        snippet = item.get("snippet", {})
+        thumbnails = snippet.get("thumbnails", {})
+        thumbnail_url = thumbnails.get("high", thumbnails.get("default", {})).get("url", "")
+
+        final_videos.append({
+            "video_id": item.get("id"),
+            "video_title": snippet.get("title", "No Title"),
+            "channelTitle": snippet.get("channelTitle", "Unknown Channel"),
+            "thumbnail_url": thumbnail_url,
+            "publishTime": snippet.get("publishTime", snippet.get("publishedAt", ""))
+        })
+
+        if len(final_videos) >= maxResults:
+            break
+
+    logger.info(f"YouTube Search API returned {len(final_videos)} videos after filtering.")
+    return final_videos
+
 
 def fetch_top_comments(video_id, max_results=10, youtube_token=None):
     if not youtube_token:

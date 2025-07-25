@@ -12,6 +12,8 @@ def insert_job_result(job_id: str, video: dict, analysis: dict):
     """
     Inserts a job result into the job_results table in Supabase.
     Maps summary to next_hot_topic from analysis.
+    Returns:
+        APIResponse: The response object from supabase-py. Check .data for inserted rows.
     """
     data = {
         "job_id": job_id,
@@ -23,4 +25,5 @@ def insert_job_result(job_id: str, video: dict, analysis: dict):
         "cons": analysis.get("cons"),
         "summary": analysis.get("next_hot_topic"),
     }
+    # The returned object has a .data attribute with the inserted rows
     return supabase.table("job_results").insert(data).execute() 
