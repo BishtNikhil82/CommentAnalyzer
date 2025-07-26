@@ -105,7 +105,7 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
         "type": "video",  # Ensures only videos are requested
         "maxResults": min(50, maxResults * 2),
         "order": order,
-        "videoDuration": "medium"
+        "videoDuration": "long"
     }
 
     if regionCode:
