@@ -39,7 +39,7 @@ def analyze_youtube(
     order: str = Query("relevance", description="Order of search results"),
     regionCode: Optional[str] = Query(None, description="Region code (e.g., IN)"),
     topic: Optional[str] = Query(None, description="Topic to search (optional)"),
-    job_id: str = Query(..., description="Job ID for tracking"),
+    job_id: int = Query(..., description="Job ID for tracking (BIGINT)"),
     authorization: Optional[str] = Header(None)
     ):
     if authorization is None or not authorization.startswith("Bearer "):

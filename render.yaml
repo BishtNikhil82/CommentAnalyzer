@@ -8,4 +8,6 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
-        sync: false 
+        sync: false
+      - key: OPENROUTER_API_KEY  # Add this line
+        sync: false

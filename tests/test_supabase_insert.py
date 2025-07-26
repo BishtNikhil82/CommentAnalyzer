@@ -2,7 +2,7 @@ from db.supabase_client import insert_job_result
 import uuid
 
 def test_insert_job_result():
-    job_id = "b7e6a1c2-3f4d-4e2a-9b1a-2c3d4e5f6a7b"
+    job_id = 12345  # Now using BIGINT instead of UUID string
     video = {
         "video_id": "test_video_id",
         "channelTitle": "Test Channel",
