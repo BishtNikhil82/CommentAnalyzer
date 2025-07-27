@@ -26,6 +26,9 @@ def analyze_youtube(
     job_id: str = Query(...),  # keep it str or UUID
     authorization: Optional[str] = Header(None)
 ):
+    
+    logger.info(f"######### Analyzer Called #########")
+    
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
