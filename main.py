@@ -12,6 +12,18 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://comment-ui-flax.vercel.app"],  # your UI domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.get("/healthz")
 def health_check():
     return {"status": "ok"}
