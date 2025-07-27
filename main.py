@@ -32,6 +32,11 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 import json
 
+@app.get("/healthz")
+def health_check():
+    return {"status": "ok"}
+
+
 @app.get("/analyze-youtube")
 def analyze_youtube(
     query: str = Query(..., description="YouTube search keyword/phrase"),
