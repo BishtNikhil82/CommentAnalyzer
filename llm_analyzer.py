@@ -104,14 +104,14 @@ def analyze_video_comments(video, comments):
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=60
+                timeout=180
             )
             if response.status_code == 200:
                 content = response.json()["choices"][0]["message"]["content"]
                 logger.info(f"Raw LLM response for video {video['video_id']} (model {model}):\n{content}")
                 
                 if not content or content.strip() == "":
-                    logger.error(f"LLM API returned empty response for video {video['video_id']} (model {model})")
+                    logger.error(f"LLM API: Empty response from model {model} for video {video['video_id']}, trying next model...")
                     last_error = "Empty response from LLM API"
                     continue
                 
@@ -120,12 +120,16 @@ def analyze_video_comments(video, comments):
                 
                 # Check if all sections are empty
                 if not result.get('pros') and not result.get('cons') and not result.get('next_hot_topic'):
-                    logger.error(f"LLM API: All extracted sections are empty for video {video['video_id']} (model {model})")
+                    logger.error(f"LLM API: All extracted sections are empty for video {video['video_id']} (model {model}), trying next model...")
                     last_error = "All extracted sections are empty"
                     continue
                 
                 base_response.update(result)
                 return base_response
+            elif response.status_code == 408:
+                logger.warning(f"LLM API: Model {model} timed out (status 408), trying next model...")
+                last_error = "Timeout"
+                continue
             elif response.status_code in [429, 403]:
                 logger.warning(f"LLM API: Model {model} rate limited (status {response.status_code}), trying next model...")
                 last_error = response.text
@@ -133,7 +137,7 @@ def analyze_video_comments(video, comments):
             else:
                 logger.error(f"LLM API error (model {model}): {response.text}")
                 last_error = response.text
-                break
+                continue  # Try next model instead of breaking
         except Exception as e:
             logger.error(f"LLM API: Exception calling model {model} for video {video['video_id']}: {e}")
             last_error = str(e)

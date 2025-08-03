@@ -59,11 +59,17 @@ def analyze_youtube(
                 comments = fetch_top_comments(video['video_id'], 10, youtube_token)
                 analysis = analyze_video_comments(video, comments)
 
-                try:
-                    insert_job_result(job_id, video, analysis)
-                    logger.info(f"✅ Inserted result for video {video['video_id']}")
-                except Exception as db_exc:
-                    logger.error(f"❌ Failed to insert result for {video['video_id']}: {db_exc}")
+                # Check if analysis was successful (has content in pros, cons, or next_hot_topic)
+                has_content = (analysis.get('pros') or analysis.get('cons') or analysis.get('next_hot_topic'))
+                
+                if has_content:
+                    try:
+                        insert_job_result(job_id, video, analysis)
+                        logger.info(f"✅ Inserted result for video {video['video_id']}")
+                    except Exception as db_exc:
+                        logger.error(f"❌ Failed to insert result for {video['video_id']}: {db_exc}")
+                else:
+                    logger.warning(f"⚠️ Skipping database insert for video {video['video_id']} - no analysis content (reason: {analysis.get('reason', 'Unknown')})")
 
         except Exception as e:
             logger.exception(f"🚨 Analysis error: {e}")
