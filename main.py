@@ -56,7 +56,7 @@ def analyze_youtube(
             for idx, video in enumerate(videos):
                 # logger.info(f"▶️ Analyzing video {idx + 1}/{len(videos)}: {video['video_title']}")
 
-                comments = fetch_top_comments(video['video_id'], 10, youtube_token)
+                comments = fetch_top_comments(video['video_id'], 50, youtube_token)
                 analysis = analyze_video_comments(video, comments)
 
                 # Check if analysis was successful (has content in pros, cons, or next_hot_topic)
