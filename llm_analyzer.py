@@ -61,6 +61,8 @@ def analyze_video_comments(video, comments):
                 seen.add(c_clean)
     comments_sanitized = len(sanitized_comments)
     
+    logger.info(f"Video {video['video_id']}: {comments_fetched} comments fetched, {comments_sanitized} sanitized")
+    
     base_response = {
         "video_id": video["video_id"],
         "video_title": video["video_title"],
@@ -76,6 +78,7 @@ def analyze_video_comments(video, comments):
 
     if not sanitized_comments:
         base_response["reason"] = "No valid comments found after filtering." if comments_fetched > 0 else "No comments fetched from API."
+        logger.warning(f"Video {video['video_id']}: {base_response['reason']}")
         return base_response
 
     prompt = build_prompt(video, sanitized_comments)
@@ -106,23 +109,37 @@ def analyze_video_comments(video, comments):
             if response.status_code == 200:
                 content = response.json()["choices"][0]["message"]["content"]
                 logger.info(f"Raw LLM response for video {video['video_id']} (model {model}):\n{content}")
+                
+                if not content or content.strip() == "":
+                    logger.error(f"LLM API returned empty response for video {video['video_id']} (model {model})")
+                    last_error = "Empty response from LLM API"
+                    continue
+                
                 result = extract_sections_from_text(content)
+                logger.info(f"Extracted sections for video {video['video_id']}: pros='{result.get('pros', '')[:100]}...', cons='{result.get('cons', '')[:100]}...', next_hot_topic='{result.get('next_hot_topic', '')[:100]}...'")
+                
+                # Check if all sections are empty
+                if not result.get('pros') and not result.get('cons') and not result.get('next_hot_topic'):
+                    logger.error(f"LLM API: All extracted sections are empty for video {video['video_id']} (model {model})")
+                    last_error = "All extracted sections are empty"
+                    continue
+                
                 base_response.update(result)
                 return base_response
             elif response.status_code in [429, 403]:
-                logger.warning(f"Model {model} rate limited (status {response.status_code}), trying next model...")
+                logger.warning(f"LLM API: Model {model} rate limited (status {response.status_code}), trying next model...")
                 last_error = response.text
                 continue
             else:
-                logger.error(f"OpenRouter API error (model {model}): {response.text}")
+                logger.error(f"LLM API error (model {model}): {response.text}")
                 last_error = response.text
                 break
         except Exception as e:
-            logger.error(f"Exception calling LLM model {model} for video {video['video_id']}: {e}")
+            logger.error(f"LLM API: Exception calling model {model} for video {video['video_id']}: {e}")
             last_error = str(e)
             continue
     
-    logger.error(f"All LLM models failed for video {video['video_id']}. Last error: {last_error}")
+    logger.error(f"LLM API: All models failed for video {video['video_id']}. Last error: {last_error}")
     base_response["reason"] = "LLM analysis failed for all models."
     return base_response
 
@@ -152,6 +169,8 @@ def build_prompt(video, comments):
     return prompt
 
 def extract_sections_from_text(text):
+    logger.info(f"Extracting sections from text (first 200 chars): {text[:200]}...")
+    
     # First try to parse as JSON if it looks like JSON
     if '{' in text and '}' in text:
         try:
@@ -169,12 +188,15 @@ def extract_sections_from_text(text):
             # Remove overlap between cons and next_hot_topic
             cons_clean = [c for c in cons if c.strip() and c.strip() not in next_hot_topic]
             next_clean = [n for n in next_hot_topic if n.strip()]
-            return {
+            result = {
                 "pros": "\n".join([p.strip() for p in pros if p.strip()]),
                 "cons": "\n".join(cons_clean),
                 "next_hot_topic": "\n".join(next_clean)
             }
-        except json.JSONDecodeError:
+            logger.info(f"JSON parsing successful: pros={len(result['pros'])}, cons={len(result['cons'])}, next_hot_topic={len(result['next_hot_topic'])}")
+            return result
+        except json.JSONDecodeError as e:
+            logger.warning(f"LLM API: JSON parsing failed: {e}")
             pass
 
     # If JSON parsing fails, use regex to extract sections
@@ -188,14 +210,27 @@ def extract_sections_from_text(text):
     pros_match = re.search(r"(?:PROS:|POSITIVE)[:\s]*(.*?)(?=(?:CONS:|NEXT HOT TOPIC:|$))", text, re.IGNORECASE | re.DOTALL)
     cons_match = re.search(r"(?:CONS:|NEGATIVE)[:\s]*(.*?)(?=(?:PROS:|NEXT HOT TOPIC:|$))", text, re.IGNORECASE | re.DOTALL)
     next_match = re.search(r"(?:NEXT HOT TOPIC|SUGGESTED TOPIC)[:\s]*(.*?)(?=(?:PROS:|CONS:|$))", text, re.IGNORECASE | re.DOTALL)
+    
+    logger.info(f"Regex matches: pros={bool(pros_match)}, cons={bool(cons_match)}, next={bool(next_match)}")
+    
     pros_list = extract_bullet_points(pros_match.group(1)) if pros_match else []
     cons_list = extract_bullet_points(cons_match.group(1)) if cons_match else []
     next_list = extract_bullet_points(next_match.group(1)) if next_match else []
+    
     # Remove overlap between cons and next_hot_topic
     cons_clean = [c for c in cons_list if c and c not in next_list]
     next_clean = [n for n in next_list if n]
-    return {
+    
+    result = {
         "pros": "\n".join([p for p in pros_list if p]),
         "cons": "\n".join(cons_clean),
         "next_hot_topic": "\n".join(next_clean)
-    } 
+    }
+    
+    logger.info(f"Regex extraction: pros={len(result['pros'])}, cons={len(result['cons'])}, next_hot_topic={len(result['next_hot_topic'])}")
+    
+    # Log if all sections are empty after regex extraction
+    if not result['pros'] and not result['cons'] and not result['next_hot_topic']:
+        logger.error(f"LLM API: All sections empty after regex extraction for text: {text[:200]}...")
+    
+    return result 

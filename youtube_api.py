@@ -90,7 +90,7 @@ def _parse_duration(duration_str: str) -> int:
 
 def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=None, youtube_token=None):
     if not youtube_token:
-        logger.error("Missing YouTube OAuth token")
+        logger.error("YouTube API: Missing YouTube OAuth token")
         return []
 
     headers = {
@@ -111,15 +111,21 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
     if regionCode:
         search_params["regionCode"] = regionCode
 
-    logger.info(f"YouTube Search API request: {search_url} params={search_params}")
+    logger.info(f"YouTube API: Search request: {search_url} params={search_params}")
     search_resp = requests.get(search_url, headers=headers, params=search_params)
-    logger.info(f"YouTube Search API response status: {search_resp.status_code}")
+    logger.info(f"YouTube API: Search response status: {search_resp.status_code}")
     
     if search_resp.status_code != 200:
-        logger.error(f"YouTube API error: {search_resp.text}")
+        logger.error(f"YouTube API: Search API error: {search_resp.text}")
         return []
 
     search_items = search_resp.json().get("items", [])
+    
+    if not search_items:
+        logger.warning(f"YouTube API: No search results found for query: {query}")
+        return []
+
+    logger.info(f"YouTube API: Found {len(search_items)} search results for query: {query}")
 
     # ✅ Safe videoId extraction
     video_ids = [
@@ -129,8 +135,10 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
     ]
 
     if not video_ids:
-        logger.warning("No valid video IDs found in search results.")
+        logger.warning("YouTube API: No valid video IDs found in search results.")
         return []
+
+    logger.info(f"YouTube API: Extracted {len(video_ids)} valid video IDs")
 
     videos_url = "https://www.googleapis.com/youtube/v3/videos"
     videos_params = {
@@ -139,10 +147,10 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
     }
 
     videos_resp = requests.get(videos_url, headers=headers, params=videos_params)
-    logger.info(f"YouTube Videos API response status: {videos_resp.status_code}")
+    logger.info(f"YouTube API: Videos response status: {videos_resp.status_code}")
     
     if videos_resp.status_code != 200:
-        logger.error(f"YouTube Videos API error: {videos_resp.text}")
+        logger.error(f"YouTube API: Videos API error: {videos_resp.text}")
         return []
 
     final_videos = []
@@ -162,13 +170,13 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
         if len(final_videos) >= maxResults:
             break
 
-    logger.info(f"YouTube Search API returned {len(final_videos)} videos after filtering.")
+    logger.info(f"YouTube API: Search returned {len(final_videos)} videos after filtering.")
     return final_videos
 
 
 def fetch_top_comments(video_id, max_results=10, youtube_token=None):
     if not youtube_token:
-        logger.error("Missing YouTube OAuth token")
+        logger.error("YouTube API: Missing YouTube OAuth token")
         return []
 
     headers = {
@@ -184,19 +192,38 @@ def fetch_top_comments(video_id, max_results=10, youtube_token=None):
         "order": "relevance"
     }
 
-    logger.info(f"YouTube Comments API request: {url} with params={params}")
+    logger.info(f"YouTube API: Comments request: {url} with params={params}")
     resp = requests.get(url, headers=headers, params=params)
-    logger.info(f"YouTube Comments API response status: {resp.status_code}")
+    logger.info(f"YouTube API: Comments response status: {resp.status_code}")
+    
     if resp.status_code != 200:
-        logger.error(f"YouTube Comments API error: {resp.text}")
+        logger.error(f"YouTube API: Comments API error: {resp.text}")
         return []
 
     data = resp.json()
     comments = []
-    for item in data.get("items", []):
-        snippet = item["snippet"]["topLevelComment"]["snippet"]
-        text = snippet.get("textOriginal", "").strip()
-        if text:
-            comments.append(text)
+    
+    # Check if response has items
+    items = data.get("items", [])
+    if not items:
+        logger.warning(f"YouTube API: No comments found for video {video_id}")
+        return []
+    
+    logger.info(f"YouTube API: Found {len(items)} comment threads for video {video_id}")
+    
+    for item in items:
+        try:
+            snippet = item["snippet"]["topLevelComment"]["snippet"]
+            text = snippet.get("textOriginal", "").strip()
+            if text:
+                comments.append(text)
+        except (KeyError, TypeError) as e:
+            logger.warning(f"YouTube API: Failed to extract comment text: {e}")
+            continue
 
+    logger.info(f"YouTube API: Extracted {len(comments)} valid comments from {len(items)} threads for video {video_id}")
+    
+    if not comments:
+        logger.warning(f"YouTube API: No valid comments extracted for video {video_id}")
+    
     return comments

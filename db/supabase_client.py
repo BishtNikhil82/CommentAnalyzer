@@ -29,5 +29,22 @@ def insert_job_result(job_id: int, video: dict, analysis: dict):
         "cons": analysis.get("cons"),
         "summary": analysis.get("next_hot_topic"),
     }
-    # The returned object has a .data attribute with the inserted rows
-    return supabase.table("job_results").insert(data).execute() 
+    
+    # Log the data being inserted for debugging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Database: Inserting job result: job_id={job_id}, video_id={video['video_id']}")
+    logger.info(f"Database: Analysis data: pros='{analysis.get('pros', '')[:100]}...', cons='{analysis.get('cons', '')[:100]}...', next_hot_topic='{analysis.get('next_hot_topic', '')[:100]}...'")
+    
+    # Check if all analysis fields are empty
+    if not analysis.get('pros') and not analysis.get('cons') and not analysis.get('next_hot_topic'):
+        logger.warning(f"Database: All analysis fields are empty for video {video['video_id']}")
+    
+    try:
+        # The returned object has a .data attribute with the inserted rows
+        response = supabase.table("job_results").insert(data).execute()
+        logger.info(f"Database: Successfully inserted job result for video {video['video_id']}")
+        return response
+    except Exception as e:
+        logger.error(f"Database: Failed to insert job result for video {video['video_id']}: {e}")
+        raise 
