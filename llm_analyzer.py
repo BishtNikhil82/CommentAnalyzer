@@ -61,7 +61,7 @@ def analyze_video_comments(video, comments):
                 seen.add(c_clean)
     comments_sanitized = len(sanitized_comments)
     
-    logger.info(f"Video {video['video_id']}: {comments_fetched} comments fetched, {comments_sanitized} sanitized")
+    # logger.info(f"Video {video['video_id']}: {comments_fetched} comments fetched, {comments_sanitized} sanitized")
     
     base_response = {
         "video_id": video["video_id"],
@@ -108,7 +108,7 @@ def analyze_video_comments(video, comments):
             )
             if response.status_code == 200:
                 content = response.json()["choices"][0]["message"]["content"]
-                logger.info(f"Raw LLM response for video {video['video_id']} (model {model}):\n{content}")
+                # logger.info(f"Raw LLM response for video {video['video_id']} (model {model}):\n{content}")
                 
                 if not content or content.strip() == "":
                     logger.error(f"LLM API: Empty response from model {model} for video {video['video_id']}, trying next model...")
@@ -116,7 +116,7 @@ def analyze_video_comments(video, comments):
                     continue
                 
                 result = extract_sections_from_text(content)
-                logger.info(f"Extracted sections for video {video['video_id']}: pros='{result.get('pros', '')[:100]}...', cons='{result.get('cons', '')[:100]}...', next_hot_topic='{result.get('next_hot_topic', '')[:100]}...'")
+                # logger.info(f"Extracted sections for video {video['video_id']}: pros='{result.get('pros', '')[:100]}...', cons='{result.get('cons', '')[:100]}...', next_hot_topic='{result.get('next_hot_topic', '')[:100]}...'")
                 
                 # Check if all sections are empty
                 if not result.get('pros') and not result.get('cons') and not result.get('next_hot_topic'):
@@ -127,11 +127,11 @@ def analyze_video_comments(video, comments):
                 base_response.update(result)
                 return base_response
             elif response.status_code == 408:
-                logger.warning(f"LLM API: Model {model} timed out (status 408), trying next model...")
+                # logger.warning(f"LLM API: Model {model} timed out (status 408), trying next model...")
                 last_error = "Timeout"
                 continue
             elif response.status_code in [429, 403]:
-                logger.warning(f"LLM API: Model {model} rate limited (status {response.status_code}), trying next model...")
+                # logger.warning(f"LLM API: Model {model} rate limited (status {response.status_code}), trying next model...")
                 last_error = response.text
                 continue
             else:
@@ -173,7 +173,7 @@ def build_prompt(video, comments):
     return prompt
 
 def extract_sections_from_text(text):
-    logger.info(f"Extracting sections from text (first 200 chars): {text[:200]}...")
+    # logger.info(f"Extracting sections from text (first 200 chars): {text[:200]}...")
     
     # First try to parse as JSON if it looks like JSON
     if '{' in text and '}' in text:
@@ -197,7 +197,7 @@ def extract_sections_from_text(text):
                 "cons": "\n".join(cons_clean),
                 "next_hot_topic": "\n".join(next_clean)
             }
-            logger.info(f"JSON parsing successful: pros={len(result['pros'])}, cons={len(result['cons'])}, next_hot_topic={len(result['next_hot_topic'])}")
+            # logger.info(f"JSON parsing successful: pros={len(result['pros'])}, cons={len(result['cons'])}, next_hot_topic={len(result['next_hot_topic'])}")
             return result
         except json.JSONDecodeError as e:
             logger.warning(f"LLM API: JSON parsing failed: {e}")
@@ -215,7 +215,7 @@ def extract_sections_from_text(text):
     cons_match = re.search(r"(?:CONS:|NEGATIVE)[:\s]*(.*?)(?=(?:PROS:|NEXT HOT TOPIC:|$))", text, re.IGNORECASE | re.DOTALL)
     next_match = re.search(r"(?:NEXT HOT TOPIC|SUGGESTED TOPIC)[:\s]*(.*?)(?=(?:PROS:|CONS:|$))", text, re.IGNORECASE | re.DOTALL)
     
-    logger.info(f"Regex matches: pros={bool(pros_match)}, cons={bool(cons_match)}, next={bool(next_match)}")
+    # logger.info(f"Regex matches: pros={bool(pros_match)}, cons={bool(cons_match)}, next={bool(next_match)}")
     
     pros_list = extract_bullet_points(pros_match.group(1)) if pros_match else []
     cons_list = extract_bullet_points(cons_match.group(1)) if cons_match else []
@@ -231,7 +231,7 @@ def extract_sections_from_text(text):
         "next_hot_topic": "\n".join(next_clean)
     }
     
-    logger.info(f"Regex extraction: pros={len(result['pros'])}, cons={len(result['cons'])}, next_hot_topic={len(result['next_hot_topic'])}")
+    # logger.info(f"Regex extraction: pros={len(result['pros'])}, cons={len(result['cons'])}, next_hot_topic={len(result['next_hot_topic'])}")
     
     # Log if all sections are empty after regex extraction
     if not result['pros'] and not result['cons'] and not result['next_hot_topic']:

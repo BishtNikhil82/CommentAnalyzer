@@ -47,9 +47,9 @@ def _parse_duration(duration_str: str) -> int:
     if regionCode:
         search_params["regionCode"] = regionCode
 
-    logger.info(f"YouTube Search API request: {search_url} params={search_params}")
+    # logger.info(f"YouTube Search API request: {search_url} params={search_params}")
     search_resp = requests.get(search_url, headers=headers, params=search_params)
-    logger.info(f"YouTube Search API response status: {search_resp.status_code}")
+    # logger.info(f"YouTube Search API response status: {search_resp.status_code}")
     if search_resp.status_code != 200:
         logger.error(f"YouTube API error: {search_resp.text}")
         return []
@@ -85,7 +85,7 @@ def _parse_duration(duration_str: str) -> int:
         if len(final_videos) >= maxResults:
             break
 
-    logger.info(f"YouTube Search API returned {len(final_videos)} videos after filtering.")
+    # logger.info(f"YouTube Search API returned {len(final_videos)} videos after filtering.")
     return final_videos
 
 def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=None, youtube_token=None):
@@ -111,9 +111,9 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
     if regionCode:
         search_params["regionCode"] = regionCode
 
-    logger.info(f"YouTube API: Search request: {search_url} params={search_params}")
+    # logger.info(f"YouTube API: Search request: {search_url} params={search_params}")
     search_resp = requests.get(search_url, headers=headers, params=search_params)
-    logger.info(f"YouTube API: Search response status: {search_resp.status_code}")
+    # logger.info(f"YouTube API: Search response status: {search_resp.status_code}")
     
     if search_resp.status_code != 200:
         logger.error(f"YouTube API: Search API error: {search_resp.text}")
@@ -125,7 +125,7 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
         logger.warning(f"YouTube API: No search results found for query: {query}")
         return []
 
-    logger.info(f"YouTube API: Found {len(search_items)} search results for query: {query}")
+    # logger.info(f"YouTube API: Found {len(search_items)} search results for query: {query}")
 
     # ✅ Safe videoId extraction
     video_ids = [
@@ -138,7 +138,7 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
         logger.warning("YouTube API: No valid video IDs found in search results.")
         return []
 
-    logger.info(f"YouTube API: Extracted {len(video_ids)} valid video IDs")
+    # logger.info(f"YouTube API: Extracted {len(video_ids)} valid video IDs")
 
     videos_url = "https://www.googleapis.com/youtube/v3/videos"
     videos_params = {
@@ -147,7 +147,7 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
     }
 
     videos_resp = requests.get(videos_url, headers=headers, params=videos_params)
-    logger.info(f"YouTube API: Videos response status: {videos_resp.status_code}")
+    # logger.info(f"YouTube API: Videos response status: {videos_resp.status_code}")
     
     if videos_resp.status_code != 200:
         logger.error(f"YouTube API: Videos API error: {videos_resp.text}")
@@ -170,7 +170,7 @@ def search_youtube_videos(query, maxResults=1, order="relevance", regionCode=Non
         if len(final_videos) >= maxResults:
             break
 
-    logger.info(f"YouTube API: Search returned {len(final_videos)} videos after filtering.")
+    # logger.info(f"YouTube API: Search returned {len(final_videos)} videos after filtering.")
     return final_videos
 
 
@@ -192,9 +192,9 @@ def fetch_top_comments(video_id, max_results=10, youtube_token=None):
         "order": "relevance"
     }
 
-    logger.info(f"YouTube API: Comments request: {url} with params={params}")
+    # logger.info(f"YouTube API: Comments request: {url} with params={params}")
     resp = requests.get(url, headers=headers, params=params)
-    logger.info(f"YouTube API: Comments response status: {resp.status_code}")
+    # logger.info(f"YouTube API: Comments response status: {resp.status_code}")
     
     if resp.status_code != 200:
         logger.error(f"YouTube API: Comments API error: {resp.text}")
@@ -209,7 +209,7 @@ def fetch_top_comments(video_id, max_results=10, youtube_token=None):
         logger.warning(f"YouTube API: No comments found for video {video_id}")
         return []
     
-    logger.info(f"YouTube API: Found {len(items)} comment threads for video {video_id}")
+    # logger.info(f"YouTube API: Found {len(items)} comment threads for video {video_id}")
     
     for item in items:
         try:
@@ -221,7 +221,7 @@ def fetch_top_comments(video_id, max_results=10, youtube_token=None):
             logger.warning(f"YouTube API: Failed to extract comment text: {e}")
             continue
 
-    logger.info(f"YouTube API: Extracted {len(comments)} valid comments from {len(items)} threads for video {video_id}")
+    # logger.info(f"YouTube API: Extracted {len(comments)} valid comments from {len(items)} threads for video {video_id}")
     
     if not comments:
         logger.warning(f"YouTube API: No valid comments extracted for video {video_id}")

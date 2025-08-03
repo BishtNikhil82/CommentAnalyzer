@@ -51,10 +51,10 @@ def analyze_youtube(
     def run_analysis():
         try:
             videos = search_youtube_videos(query, maxResults, order, regionCode, youtube_token)
-            logger.info(f"🔍 Found {len(videos)} videos.")
+            # logger.info(f"🔍 Found {len(videos)} videos.")
 
             for idx, video in enumerate(videos):
-                logger.info(f"▶️ Analyzing video {idx + 1}/{len(videos)}: {video['video_title']}")
+                # logger.info(f"▶️ Analyzing video {idx + 1}/{len(videos)}: {video['video_title']}")
 
                 comments = fetch_top_comments(video['video_id'], 10, youtube_token)
                 analysis = analyze_video_comments(video, comments)
@@ -65,7 +65,7 @@ def analyze_youtube(
                 if has_content:
                     try:
                         insert_job_result(job_id, video, analysis)
-                        logger.info(f"✅ Inserted result for video {video['video_id']}")
+                        # logger.info(f"✅ Inserted result for video {video['video_id']}")
                     except Exception as db_exc:
                         logger.error(f"❌ Failed to insert result for {video['video_id']}: {db_exc}")
                 else:
